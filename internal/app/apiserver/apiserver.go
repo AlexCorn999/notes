@@ -9,8 +9,11 @@ import (
 	"github.com/AlexCorn999/notes/internal/app/note"
 	"github.com/AlexCorn999/notes/internal/app/store"
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt"
 	"github.com/sirupsen/logrus"
 )
+
+var mySignKey = []byte("super-secret-auth-key")
 
 type APIServer struct {
 	logger *logrus.Logger
@@ -47,9 +50,9 @@ func (s *APIServer) configureLogger() {
 // configureRouter
 func (s *APIServer) configureRouter() {
 	s.router.Post("/user", s.handleUsersCreate())
-	s.router.Post("/join", s.handleSession())
-	s.router.Post("/create", s.AddNote())
-	s.router.Get("/notes", s.GetList())
+	s.router.HandleFunc("/join", s.ValidateJWT(s.login()))
+	s.router.HandleFunc("/create", s.ValidateJWT(s.AddNote()))
+	s.router.HandleFunc("/notes", s.ValidateJWT(s.GetList()))
 }
 
 // configureStore opens a connection to the database and assigns a value to the server database
@@ -91,11 +94,17 @@ func (s *APIServer) handleUsersCreate() http.HandlerFunc {
 			return
 		}
 
-		s.respond(w, r, http.StatusCreated, u)
+		token, err := s.GenerateToken(req.Email, req.Password)
+		if err != nil {
+			s.error(w, r, http.StatusUnauthorized, err)
+			return
+		}
+
+		s.respond(w, r, http.StatusCreated, token)
 	}
 }
 
-func (s *APIServer) handleSession() http.HandlerFunc {
+func (s *APIServer) login() http.HandlerFunc {
 	type request struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -111,10 +120,12 @@ func (s *APIServer) handleSession() http.HandlerFunc {
 		user, err := s.store.User().FindByEmail(req.Email)
 		if err != nil {
 			s.error(w, r, http.StatusUnauthorized, err)
+			return
 		}
 
 		if req.Password != user.Password {
 			s.error(w, r, http.StatusUnauthorized, errors.New("incorrect password"))
+			return
 		}
 
 		s.respond(w, r, http.StatusOK, nil)
@@ -171,4 +182,39 @@ func (s *APIServer) respond(w http.ResponseWriter, r *http.Request, code int, da
 	if data != nil {
 		json.NewEncoder(w).Encode(data)
 	}
+}
+
+func (s *APIServer) ValidateJWT(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header["Token"] != nil {
+
+			token, err := jwt.Parse(r.Header["Token"][0], func(t *jwt.Token) (interface{}, error) {
+				_, ok := t.Method.(*jwt.SigningMethodHMAC)
+				if !ok {
+					s.error(w, r, http.StatusUnauthorized, nil)
+				}
+				return mySignKey, nil
+			})
+
+			if err != nil {
+				s.error(w, r, http.StatusUnauthorized, err)
+			}
+
+			if token.Valid {
+				next(w, r)
+			}
+
+		} else {
+			s.error(w, r, http.StatusUnauthorized, errors.New("no autorized"))
+		}
+	}
+}
+
+func (s *APIServer) GenerateToken(email, password string) (string, error) {
+	token := jwt.New(jwt.SigningMethodHS256)
+	tokenString, err := token.SignedString(mySignKey)
+	if err != nil {
+		return "", err
+	}
+	return tokenString, nil
 }
