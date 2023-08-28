@@ -1,0 +1,48 @@
+###
+
+GET  http://localhost:8080/create HTTP/1.1
+content-type: application/json
+
+# 200 (OK)
+# 404 (Not Found)
+
+###
+
+POST http://localhost:8080/user HTTP/1.1
+content-type: application/json
+
+{"email":"Alex@mail.ru","password":"232435"}
+
+# 201 (Created) 
+# 404 (Not Found)
+
+###
+
+POST http://localhost:8080/join HTTP/1.1
+content-type: application/json
+
+{"email":"Kate@mail.ru","password":"232435"}
+
+# 200 (OK)
+# 404 (Not Found) 
+
+###
+
+POST http://localhost:8080/create HTTP/1.1
+content-type: application/json
+
+{"title":"Rfr","text":"Запуск сервиса и требуемой им инфраструктуры должен производиться в докер контейнерах, необходимо продумать удобство проверки работоспособности методов API при ревью задачи (шаблоны curl запросов, postman коллекция, автотесты и т.п.)"}
+
+# 201 (Created) 
+# 404 (Not Found)
+
+###
+
+GET http://localhost:8080/notes HTTP/1.1
+content-type: application/json
+
+
+# 201 (Created) 
+# 404 (Not Found)
+
+###

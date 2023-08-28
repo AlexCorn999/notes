@@ -4,9 +4,9 @@
 
 CREATE TABLE
     users (
-        user_id bigserial not null primary key,
-        email varchar not null unique,
-        encrypted_password varchar not null
+        id serial primary key,
+        email varchar(255) not null,
+        password varchar(255) not null
     );
 
 -- +goose StatementEnd
