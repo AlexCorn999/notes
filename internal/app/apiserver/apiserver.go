@@ -7,6 +7,7 @@ import (
 
 	"net/http"
 
+	"github.com/AlexCorn999/notes/internal/app/logger"
 	"github.com/AlexCorn999/notes/internal/app/model"
 	"github.com/AlexCorn999/notes/internal/app/note"
 	"github.com/AlexCorn999/notes/internal/app/store"
@@ -51,10 +52,11 @@ func (s *APIServer) configureLogger() {
 
 // configureRouter sets endpoints
 func (s *APIServer) configureRouter() {
+	s.router.Use(logger.WithLogging)
 	s.router.Post("/user", s.userCreate())
-	s.router.HandleFunc("/join", s.ValidateJWT(s.login()))
-	s.router.HandleFunc("/create", s.ValidateJWT(s.addNote()))
-	s.router.HandleFunc("/notes", s.ValidateJWT(s.getList()))
+	s.router.HandleFunc("/join", s.validateJWT(s.login()))
+	s.router.HandleFunc("/create", s.validateJWT(s.addNote()))
+	s.router.HandleFunc("/notes", s.validateJWT(s.getList()))
 }
 
 // configureStore opens a connection to the database and assigns a value to the server database
@@ -109,6 +111,7 @@ func (s *APIServer) userCreate() http.HandlerFunc {
 	}
 }
 
+// login authorizes the user
 func (s *APIServer) login() http.HandlerFunc {
 	type request struct {
 		Email    string `json:"email"`
@@ -138,6 +141,7 @@ func (s *APIServer) login() http.HandlerFunc {
 	}
 }
 
+// addNote adds a note
 func (s *APIServer) addNote() http.HandlerFunc {
 	type request struct {
 		User_id int    `json:"user_id"`
@@ -168,7 +172,6 @@ func (s *APIServer) addNote() http.HandlerFunc {
 			return
 		}
 
-		// check errors in note
 		if err := yandex.CheckAll(n); err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
 		}
@@ -179,6 +182,7 @@ func (s *APIServer) addNote() http.HandlerFunc {
 	}
 }
 
+// getList displays all user notes
 func (s *APIServer) getList() http.HandlerFunc {
 	type request struct {
 		User_id int `json:"user_id"`
@@ -187,6 +191,11 @@ func (s *APIServer) getList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req := &request{}
 		if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+			s.error(w, r, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := s.store.User().GetUser(req.User_id); err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
 			return
 		}
@@ -206,7 +215,8 @@ func (s *APIServer) getList() http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) ValidateJWT(next http.HandlerFunc) http.HandlerFunc {
+// ValidateJWT checks the validity of the token
+func (s *APIServer) validateJWT(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header["Token"] != nil {
 

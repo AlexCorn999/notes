@@ -19,7 +19,7 @@ POST http://localhost:8080/create HTTP/1.1
 content-type: application/json
 Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LAr2KVi8snG7SvgrIurHCIKNHt-vB179EhsGqtKez9s
 
-{"user_id":2, "title": "Используй максимально простые решения", "text":"Необходимо спроектировать."}
+{"user_id":1, "title": "Используf", "text":"Необходимо спроектировать."}
 
 # 201 (Created) 
 

@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"os"
 
 	_ "github.com/lib/pq"
 )
@@ -20,7 +21,7 @@ func NewStore() *Store {
 
 // Open opens a database connection
 func (s *Store) Open() error {
-	db, err := sql.Open("postgres", "host=localhost user=kode dbname=kode sslmode=disable password=5427")
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return err
 	}
