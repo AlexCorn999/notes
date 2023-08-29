@@ -8,12 +8,13 @@ type User struct {
 	Password string `json:"password"`
 }
 
+// Validate validates users
 func (u *User) Validate() error {
-	if len(u.Email) < 1 {
-		return errors.New("no email")
+	if len(u.Email) < 5 {
+		return errors.New("incorrect email")
 	}
-	if len(u.Password) < 1 {
-		return errors.New("no password")
+	if len(u.Password) < 3 {
+		return errors.New("incorrect password")
 	}
 	return nil
 }

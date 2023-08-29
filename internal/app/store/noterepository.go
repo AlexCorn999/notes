@@ -8,6 +8,7 @@ type NoteRepository struct {
 	store *Store
 }
 
+// CreateNote creates a note
 func (n *NoteRepository) CreateNote(note *note.Note, user_id int) error {
 	if _, err := n.store.db.Exec(
 		"insert into notes (title, content, user_id) values ($1, $2, $3)",
@@ -20,6 +21,7 @@ func (n *NoteRepository) CreateNote(note *note.Note, user_id int) error {
 	return nil
 }
 
+// GetList displays all user notes
 func (n *NoteRepository) GetList(user_id int) ([]note.Note, error) {
 	rows, err := n.store.db.Query("select title from notes where user_id = $1", user_id)
 	if err != nil {

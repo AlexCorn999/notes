@@ -3,17 +3,19 @@ package apiserver
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+
 	"net/http"
 
 	"github.com/AlexCorn999/notes/internal/app/model"
 	"github.com/AlexCorn999/notes/internal/app/note"
 	"github.com/AlexCorn999/notes/internal/app/store"
+	"github.com/AlexCorn999/notes/internal/app/tokens"
+	"github.com/AlexCorn999/notes/internal/app/yandex"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt"
 	"github.com/sirupsen/logrus"
 )
-
-var mySignKey = []byte("super-secret-auth-key")
 
 type APIServer struct {
 	logger *logrus.Logger
@@ -47,12 +49,12 @@ func (s *APIServer) configureLogger() {
 	s.logger.SetLevel(logrus.DebugLevel)
 }
 
-// configureRouter
+// configureRouter sets endpoints
 func (s *APIServer) configureRouter() {
-	s.router.Post("/user", s.handleUsersCreate())
+	s.router.Post("/user", s.userCreate())
 	s.router.HandleFunc("/join", s.ValidateJWT(s.login()))
-	s.router.HandleFunc("/create", s.ValidateJWT(s.AddNote()))
-	s.router.HandleFunc("/notes", s.ValidateJWT(s.GetList()))
+	s.router.HandleFunc("/create", s.ValidateJWT(s.addNote()))
+	s.router.HandleFunc("/notes", s.ValidateJWT(s.getList()))
 }
 
 // configureStore opens a connection to the database and assigns a value to the server database
@@ -65,8 +67,8 @@ func (s *APIServer) configureStore() error {
 	return nil
 }
 
-// handleUsersCreate adds the user to the database
-func (s *APIServer) handleUsersCreate() http.HandlerFunc {
+// UserCreate adds the user to the database
+func (s *APIServer) userCreate() http.HandlerFunc {
 	type request struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -89,18 +91,21 @@ func (s *APIServer) handleUsersCreate() http.HandlerFunc {
 			return
 		}
 
-		if _, err := s.store.User().Create(u); err != nil {
+		u, err := s.store.User().Create(u)
+		if err != nil {
 			s.error(w, r, http.StatusUnprocessableEntity, err)
 			return
 		}
 
-		token, err := s.GenerateToken(req.Email, req.Password)
+		tok, err := tokens.GenerateToken(req.Email, req.Password)
 		if err != nil {
 			s.error(w, r, http.StatusUnauthorized, err)
 			return
 		}
 
-		s.respond(w, r, http.StatusCreated, token)
+		result := fmt.Sprintf("token - %s       user_id - %d", tok, u.ID)
+
+		s.respond(w, r, http.StatusCreated, result)
 	}
 }
 
@@ -128,20 +133,27 @@ func (s *APIServer) login() http.HandlerFunc {
 			return
 		}
 
-		s.respond(w, r, http.StatusOK, nil)
+		s.respond(w, r, http.StatusOK, "Успешная авторизация :)")
 
 	}
 }
 
-func (s *APIServer) AddNote() http.HandlerFunc {
+func (s *APIServer) addNote() http.HandlerFunc {
 	type request struct {
-		Title string `json:"title"`
-		Text  string `json:"text"`
+		User_id int    `json:"user_id"`
+		Title   string `json:"title"`
+		Text    string `json:"text"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		req := &request{}
 		if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+			s.error(w, r, http.StatusBadRequest, err)
+			return
+		}
+
+		if err := s.store.User().GetUser(req.User_id); err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
 			return
 		}
@@ -151,36 +163,46 @@ func (s *APIServer) AddNote() http.HandlerFunc {
 			Text:  req.Text,
 		}
 
-		// поменять id
-		s.store.Note().CreateNote(n, 1)
+		if err := n.Validate(); err != nil {
+			s.error(w, r, http.StatusUnprocessableEntity, err)
+			return
+		}
+
+		// check errors in note
+		if err := yandex.CheckAll(n); err != nil {
+			s.error(w, r, http.StatusBadRequest, err)
+		}
+
+		s.store.Note().CreateNote(n, req.User_id)
 
 		s.respond(w, r, http.StatusCreated, n)
 	}
 }
 
-func (s *APIServer) GetList() http.HandlerFunc {
+func (s *APIServer) getList() http.HandlerFunc {
+	type request struct {
+		User_id int `json:"user_id"`
+	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		req := &request{}
+		if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+			s.error(w, r, http.StatusBadRequest, err)
+			return
+		}
 
-		// поменять id
-		result, err := s.store.Note().GetList(1)
+		result, err := s.store.Note().GetList(req.User_id)
 		if err != nil {
 			s.error(w, r, http.StatusBadRequest, err)
 			return
 		}
 
-		s.respond(w, r, http.StatusOK, result)
-	}
-}
+		titles := make([]string, 0)
+		for _, note := range result {
+			titles = append(titles, note.Title)
+		}
 
-func (s *APIServer) error(w http.ResponseWriter, r *http.Request, code int, err error) {
-	s.respond(w, r, code, map[string]string{"error": err.Error()})
-}
-
-func (s *APIServer) respond(w http.ResponseWriter, r *http.Request, code int, data interface{}) {
-	w.WriteHeader(code)
-	if data != nil {
-		json.NewEncoder(w).Encode(data)
+		s.respond(w, r, http.StatusOK, titles)
 	}
 }
 
@@ -193,7 +215,7 @@ func (s *APIServer) ValidateJWT(next http.HandlerFunc) http.HandlerFunc {
 				if !ok {
 					s.error(w, r, http.StatusUnauthorized, nil)
 				}
-				return mySignKey, nil
+				return tokens.MySignKey, nil
 			})
 
 			if err != nil {
@@ -210,11 +232,13 @@ func (s *APIServer) ValidateJWT(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *APIServer) GenerateToken(email, password string) (string, error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	tokenString, err := token.SignedString(mySignKey)
-	if err != nil {
-		return "", err
+func (s *APIServer) error(w http.ResponseWriter, r *http.Request, code int, err error) {
+	s.respond(w, r, code, map[string]string{"error": err.Error()})
+}
+
+func (s *APIServer) respond(w http.ResponseWriter, r *http.Request, code int, data interface{}) {
+	w.WriteHeader(code)
+	if data != nil {
+		json.NewEncoder(w).Encode(data)
 	}
-	return tokenString, nil
 }
