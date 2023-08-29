@@ -1,0 +1,38 @@
+###
+
+POST http://localhost:8080/user HTTP/1.1
+content-type: application/json
+
+{"email":"alexcornsmm@gmail.com","password":"123456789"}
+
+###
+
+POST  http://localhost:8080/join HTTP/1.1
+content-type: application/json
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LAr2KVi8snG7SvgrIurHCIKNHt-vB179EhsGqtKez9s
+
+{"email":"alexcornsmm@gmail.com","password":"123456789"}
+
+###
+
+POST http://localhost:8080/create HTTP/1.1
+content-type: application/json
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LAr2KVi8snG7SvgrIurHCIKNHt-vB179EhsGqtKez9s
+
+{"user_id":1, "title": "Используf", "text":"Необходимо спроектировать."}
+
+# 201 (Created) 
+
+###
+
+
+GET http://localhost:8080/notes HTTP/1.1
+content-type: application/json
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LAr2KVi8snG7SvgrIurHCIKNHt-vB179EhsGqtKez9s
+
+{"user_id":1}
+
+# 201 (Created) 
+# 404 (Not Found)
+
+###

@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  api:
+    container_name: api
+    build: .
+    environment:
+      DATABASE_URL: "host=db user=kode dbname=kode sslmode=disable password=5427"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+  db:
+    container_name: db
+    image: postgres:13.3
+    environment:
+      POSTGRES_USER: kode
+      POSTGRES_PASSWORD: 5427
+      POSTGRES_DB: kode
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/potgresql/data
+
+volumes:
+  pgdata: {}
